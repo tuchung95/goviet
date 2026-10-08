@@ -23,7 +23,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>2</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>
@@ -32,25 +32,25 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Engine © Tuyen Mai (OpenKey). Một phần mã nguồn © Anh Tuấn. GoViet 2026. GPL v3.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>SUAllowsAutomaticUpdates</key>
+	<true/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUEnableSystemProfiling</key>
+	<false/>
 	<key>SUFeedURL</key>
 	<string>https://github.com/tuchung95/goviet/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>bD+y0sEIM1MPOIUcLI2Pj7xXKOtvu4tSuNkDy1lUteI=</string>
-	<key>SUEnableAutomaticChecks</key>
+	<key>SURequireSignedFeed</key>
 	<true/>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
-	<key>SUAutomaticallyUpdate</key>
-	<false/>
-	<key>SUAllowsAutomaticUpdates</key>
-	<true/>
 	<key>SUVerifyUpdateBeforeExtraction</key>
 	<true/>
-	<key>SURequireSignedFeed</key>
-	<true/>
-	<key>SUEnableSystemProfiling</key>
-	<false/>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
 </dict>
 </plist>
