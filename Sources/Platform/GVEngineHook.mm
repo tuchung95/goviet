@@ -440,6 +440,7 @@ extern "C" {
 
         LOAD_DATA(vTempOffSpelling, vTempOffSpelling);
         LOAD_DATA(vAllowConsonantZFWJ, vAllowConsonantZFWJ);
+        LOAD_DATA(vAllowStandaloneW, vAllowStandaloneW);
         LOAD_DATA(vQuickEndConsonant, vQuickEndConsonant);
         LOAD_DATA(vQuickStartConsonant, vQuickStartConsonant);
         LOAD_DATA(vRememberCode, vRememberCode);

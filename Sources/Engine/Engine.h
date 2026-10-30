@@ -149,6 +149,13 @@ extern int vTempOffSpelling;
 extern int vAllowConsonantZFWJ;
 
 /**
+ * Telex: a "w" that doesn't modify a vowel becomes "ư" (w -> ư, tw -> tư)
+ * 0: No, keep "w"
+ * 1: Yes
+ */
+extern int vAllowStandaloneW;
+
+/**
  * 0: No; 1: Yes
  * f -> ph: fanh -> phanh,...
  * j ->gi: jang -> giang,...

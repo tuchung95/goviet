@@ -33,6 +33,7 @@ int vUseSmartSwitchKey = 1;
 int vUpperCaseFirstChar = 0;
 int vTempOffSpelling = 0;
 int vAllowConsonantZFWJ = 0;
+int vAllowStandaloneW = 0;
 int vQuickStartConsonant = 0;
 int vQuickEndConsonant = 0;
 int vRememberCode = 1;

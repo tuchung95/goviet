@@ -72,13 +72,13 @@ struct SystemPage: View {
             Section {
                 AppBundleListEditor(
                     apps: $state.excludedApps,
-                    emptyHint: "Chưa có ứng dụng nào. Kéo thả ứng dụng vào đây, nhấn +, hoặc dùng menu \u{201C}Tắt goviet cho…\u{201D} trên thanh menu.",
-                    panelMessage: "Chọn ứng dụng để loại trừ (goviet sẽ không xử lý phím trong ứng dụng đó)"
+                    emptyHint: "Chưa có ứng dụng nào. Kéo thả ứng dụng vào đây, nhấn +, hoặc dùng menu \u{201C}Tắt GoViet cho…\u{201D} trên thanh menu.",
+                    panelMessage: "Chọn ứng dụng để loại trừ (GoViet sẽ không xử lý phím trong ứng dụng đó)"
                 )
             } header: {
                 Text("Ứng dụng loại trừ")
             } footer: {
-                Text("Trong các ứng dụng này, goviet bỏ qua hoàn toàn — gõ như khi chưa cài (phù hợp terminal, IDE, game…). Khác với \u{201C}nhớ chế độ theo app\u{201D}: loại trừ là tắt cứng, luôn ưu tiên.")
+                Text("Trong các ứng dụng này, GoViet bỏ qua hoàn toàn — gõ như khi chưa cài (phù hợp terminal, IDE, game…). Khác với \u{201C}nhớ chế độ theo app\u{201D}: loại trừ là tắt cứng, luôn ưu tiên.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

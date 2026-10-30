@@ -97,6 +97,7 @@ final class AppState: ObservableObject {
     @Published var upperCaseFirstChar: Bool { didSet { set("UpperCaseFirstChar", &vUpperCaseFirstChar, upperCaseFirstChar) } }
     @Published var tempOffSpelling: Bool { didSet { set("vTempOffSpelling", &vTempOffSpelling, tempOffSpelling) } }
     @Published var allowZFWJ: Bool { didSet { set("vAllowConsonantZFWJ", &vAllowConsonantZFWJ, allowZFWJ) } }
+    @Published var allowStandaloneW: Bool { didSet { set("vAllowStandaloneW", &vAllowStandaloneW, allowStandaloneW) } }
     @Published var quickStartConsonant: Bool { didSet { set("vQuickStartConsonant", &vQuickStartConsonant, quickStartConsonant) } }
     @Published var quickEndConsonant: Bool { didSet { set("vQuickEndConsonant", &vQuickEndConsonant, quickEndConsonant) } }
     @Published var tempOffByCommand: Bool { didSet { set("vTempOffOpenKey", &vTempOffOpenKey, tempOffByCommand) } }
@@ -213,6 +214,7 @@ final class AppState: ObservableObject {
         upperCaseFirstChar = defaults.integer(forKey: "UpperCaseFirstChar") != 0
         tempOffSpelling = defaults.integer(forKey: "vTempOffSpelling") != 0
         allowZFWJ = defaults.integer(forKey: "vAllowConsonantZFWJ") != 0
+        allowStandaloneW = defaults.integer(forKey: "vAllowStandaloneW") != 0
         quickStartConsonant = defaults.integer(forKey: "vQuickStartConsonant") != 0
         quickEndConsonant = defaults.integer(forKey: "vQuickEndConsonant") != 0
         tempOffByCommand = defaults.integer(forKey: "vTempOffOpenKey") != 0
@@ -317,7 +319,7 @@ final class AppState: ObservableObject {
         let keys = ["InputMethod", "InputType", "CodeTable", "Spelling", "ModernOrthography",
                     "FreeMark", "QuickTelex", "RestoreIfInvalidWord", "FixRecommendBrowser",
                     "vFixChromiumBrowser", "UpperCaseFirstChar", "vTempOffSpelling",
-                    "vAllowConsonantZFWJ", "vQuickStartConsonant", "vQuickEndConsonant",
+                    "vAllowConsonantZFWJ", "vAllowStandaloneW", "vQuickStartConsonant", "vQuickEndConsonant",
                     "vTempOffOpenKey", "vOtherLanguage", "vFixSpotlight", "vUseAXReplacement", "axIncludeApps", "axExcludeApps", "UseMacro", "UseMacroInEnglishMode",
                     "vAutoCapsMacro", "UseSmartSwitchKey", "vRememberCode", "SendKeyStepByStep",
                     "vPerformLayoutCompat", "GrayIcon", "vShowIconOnDock", "ShowUIOnStartup",
@@ -364,7 +366,7 @@ final class AppState: ObservableObject {
         vSwitchKeyStatus = Int32(GOVIET_DEFAULT_SWITCH_STATUS)
         vCheckSpelling = 1; vUseModernOrthography = 0; vFreeMark = 0; vQuickTelex = 0
         vRestoreIfWrongSpelling = 0; vFixRecommendBrowser = 1; vFixChromiumBrowser = 0
-        vUpperCaseFirstChar = 0; vTempOffSpelling = 0; vAllowConsonantZFWJ = 0
+        vUpperCaseFirstChar = 0; vTempOffSpelling = 0; vAllowConsonantZFWJ = 0; vAllowStandaloneW = 0
         vQuickStartConsonant = 0; vQuickEndConsonant = 0; vTempOffOpenKey = 0
         vOtherLanguage = 1; vFixSpotlight = 1; vUseAXReplacement = 1; vUseMacro = 1; vUseMacroInEnglishMode = 0; vAutoCapsMacro = 0
         vUseSmartSwitchKey = 1; vRememberCode = 1; vSendKeyStepByStep = 0; vPerformLayoutCompat = 0
@@ -393,7 +395,7 @@ final class AppState: ObservableObject {
         if currentAppExcluded != excluded { currentAppExcluded = excluded }
     }
 
-    /// Toggle exclusion for a specific app (menu-bar "Tắt goviet cho …").
+    /// Toggle exclusion for a specific app (menu-bar "Tắt GoViet cho …").
     func toggleExcluded(bundleID: String) {
         if excludedApps.contains(bundleID) {
             excludedApps.removeAll { $0 == bundleID }

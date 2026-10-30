@@ -33,6 +33,10 @@ struct TypingPage: View {
                     }
                 }
 
+                // Telex and Simple Telex 2 only: VNI uses 7/8, Simple Telex 1 never converts a lone w.
+                Toggle("Gõ W thành Ư (w → ư, tw → tư)", isOn: $state.allowStandaloneW)
+                    .disabled(state.inputType == 1 || state.inputType == 2)
+
                 Picker("Bảng mã", selection: $state.codeTable) {
                     ForEach(AppState.codeTableNames.indices, id: \.self) { i in
                         Text(AppState.codeTableNames[i]).tag(i)
@@ -77,7 +81,7 @@ struct TypingPage: View {
                     .foregroundStyle(.secondary)
                 Toggle("Sửa lỗi nhân Chromium (thử nghiệm)", isOn: $state.fixChromiumBrowser)
                     .disabled(!state.fixRecommendBrowser)
-                Toggle("Tạm tắt goviet bằng phím ⌘", isOn: $state.tempOffByCommand)
+                Toggle("Tạm tắt GoViet bằng phím ⌘", isOn: $state.tempOffByCommand)
                 Toggle("Tắt Tiếng Việt khi dùng bàn phím ngôn ngữ khác", isOn: $state.otherLanguage)
             }
 

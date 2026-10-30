@@ -37,6 +37,7 @@ extern int vUseSmartSwitchKey;
 extern int vUpperCaseFirstChar;
 extern int vTempOffSpelling;
 extern int vAllowConsonantZFWJ;
+extern int vAllowStandaloneW;
 extern int vQuickStartConsonant;
 extern int vQuickEndConsonant;
 extern int vRememberCode;

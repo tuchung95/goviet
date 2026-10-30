@@ -93,7 +93,7 @@ struct MenuContent: View {
                     get: { state.currentAppExcluded },
                     set: { _ in state.toggleExcluded(bundleID: bundleID) }
                 )) {
-                    Text("Tắt goviet cho \(excludeTargetName)")
+                    Text("Tắt GoViet cho \(excludeTargetName)")
                 }
             }
 
