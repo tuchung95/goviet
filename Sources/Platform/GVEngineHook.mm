@@ -286,6 +286,79 @@ extern "C" {
     int _languageTemp = 0; //use for smart switch key
     vector<Byte> savedSmartSwitchKeyData; //use for smart switch key
 
+    // ---- Auto switch by typing ----------------------------------------------------------
+    // Ported from Vikey's VikeyCore.mm (GPL v3, © Tony Dinh). The engine decides when a word
+    // belongs to the other language. This layer collects the raw keys of the current word in
+    // English mode, sends the engine's output, flips the language, and lets Backspace undo an
+    // automatic correction right after it happens.
+    static Uint32 _enKeys[MAX_BUFF];
+    static int _enCount = 0;
+    static bool _enValid = true;          // false when the word isn't whole (started mid-word, edited past its start, has digits)
+    static bool _enAfterShortcut = false; // last key was a ⌘/⌃ shortcut (select all, cut...): Backspace then deletes a selection
+    static bool _enAfterDouble = false;   // the current English word began in Vietnamese and switched on a doubled tone key
+    static bool _enTracking = false;      // auto switch was on for the last English-mode key
+
+    // words typed just before the current one in English mode, most recent first (look-back)
+    static Uint32 _enPrevKeys[2][MAX_BUFF];
+    static int _enPrevCounts[2];
+    static int _enPrevN = 0;
+    static bool _enPrevRestored = false;  // _enPrevKeys[0] was put back to English by auto switch
+
+    struct AutoFixUndo {
+        bool active;
+        int removeCount;            // characters to delete: the corrected word plus the break character
+        UniChar text[MAX_BUFF + 1]; // what to type back: the original word
+        int textCount;
+        int language;               // language before the automatic switch
+        Uint32 keys[MAX_BUFF];      // the keys of the original word (English mode can go on typing it after an undo)
+        int keyCount;
+    };
+    static AutoFixUndo _autoFixUndo = {};
+    // after an undo the restored word stays the current word; finishing it unchanged doesn't redo the fix
+    static Uint32 _undoneKeys[MAX_BUFF];
+    static int _undoneCount = 0;
+
+    static CFAbsoluteTime _autoPauseUntil = 0;
+
+    /// Auto switch can act on English-mode words: on, not paused, and an English keyboard layout.
+    static bool EnglishAutoSwitchActive() {
+        return vAutoSwitchEnabled() && !(vOtherLanguage && !_cachedIsEnglishLayout);
+    }
+
+    /// Starts a new English-mode word; the previous words stay for look-back.
+    static void StartEnglishWord(bool valid) {
+        _enCount = 0;
+        _enValid = valid;
+        _enAfterShortcut = false;
+    }
+
+    /// Starts over: no current word and nothing to look back on.
+    static void ResetEnglishWord(bool valid) {
+        _enAfterDouble = false;
+        _undoneCount = 0;
+        StartEnglishWord(valid);
+        _enPrevN = 0;
+        _enTracking = EnglishAutoSwitchActive();
+        vAutoSwitchForget();
+    }
+
+    /// The user picked the language by hand (hotkey, menu, settings): auto switch stays out of
+    /// the way for 5 s, and nothing typed before counts for look-back.
+    void GVLanguageChangedByUser() {
+        if (vPauseAutoSwitchAfterManual) {
+            _autoPauseUntil = CFAbsoluteTimeGetCurrent() + 5;
+            vAutoSwitchPaused = 1;
+        }
+        _autoFixUndo.active = false;
+        ResetEnglishWord(true);
+    }
+
+    /// Ends the pause after a manual switch once its time is up.
+    static void UpdateAutoSwitchPause() {
+        if (vAutoSwitchPaused && CFAbsoluteTimeGetCurrent() >= _autoPauseUntil)
+            vAutoSwitchPaused = 0;
+    }
+
 
     /**
      * Atomically replace `deleteCount` characters before the caret (plus any
@@ -447,6 +520,9 @@ extern "C" {
         LOAD_DATA(vOtherLanguage, vOtherLanguage);
         LOAD_DATA(vTempOffOpenKey, vTempOffOpenKey);
 
+        LOAD_DATA(vAutoSwitchByTyping, vAutoSwitchByTyping);
+        LOAD_DATA(vPauseAutoSwitchAfterManual, vPauseAutoSwitchAfterManual);
+
         LOAD_DATA(vFixChromiumBrowser, vFixChromiumBrowser);
         LOAD_DATA(vPerformLayoutCompat, vPerformLayoutCompat);
         LOAD_DATA(vFixSpotlight, vFixSpotlight);
@@ -507,6 +583,8 @@ extern "C" {
 
     void RequestNewSession() {
         AXInvalidateFocusCache();
+        _autoFixUndo.active = false;
+        ResetEnglishWord(true);
         //send event signal to Engine
         vKeyHandleEvent(vKeyEvent::Mouse, vKeyEventState::MouseDown, 0);
 
@@ -567,6 +645,9 @@ extern "C" {
     //frontmostApplication read + flag recompute, no engine language change.
     void GVFrontMostAppChanged() {
         queryFrontMostApp();
+        //another app: forget the word in progress and the look-back history
+        _autoFixUndo.active = false;
+        ResetEnglishWord(true);
     }
 
     NSString* ConvertUtil(NSString* str) {
@@ -873,6 +954,7 @@ extern "C" {
     }
 
     void switchLanguage() {
+        GVLanguageChangedByUser();
         if (vLanguage == 0)
             vLanguage = 1;
         else
@@ -916,6 +998,260 @@ extern "C" {
             }
         }
         SendKeyCode(_keycode | (_flag & kCGEventFlagMaskShift ? CAPS_MASK : 0));
+    }
+
+    /// Sends the engine's result for the current key: backspaces, then the new characters.
+    void SendEngineOutput() {
+        //Spotlight-like fields: atomic replacement via Accessibility
+        //beats any event-timing game (no backspace can be swallowed
+        //by the async inline completion). Falls through on failure.
+        if (AXSlowPathActive() && TryAXProcessKey())
+            return;
+
+        //fix autocomplete
+        if (vFixRecommendBrowser && !_frontMostSkipsAutocompleteFix && pData->extCode != 4) {
+            if (vFixChromiumBrowser && _frontMostNeedsChromiumFix) {
+                if (pData->backspaceCount > 0) {
+                    SendShiftAndLeftArrow();
+                    if (pData->backspaceCount == 1)
+                        pData->backspaceCount--;
+                }
+            } else {
+                SendEmptyCharacter();
+                pData->backspaceCount++;
+
+            }
+        }
+
+        //send backspace (an auto switch look-back can delete MAX_BUFF - 1 characters, plus the empty character above)
+        if (pData->backspaceCount > 0 && pData->backspaceCount <= MAX_BUFF) {
+            for (_i = 0; _i < pData->backspaceCount; _i++) {
+                SendBackspace();
+            }
+        }
+
+        //send new character
+        if (!vSendKeyStepByStep) {
+            SendNewCharString();
+        } else {
+            if (pData->newCharCount > 0 && pData->newCharCount <= MAX_BUFF) {
+                for (int i = pData->newCharCount - 1; i >= 0; i--) {
+                    SendKeyCode(pData->charData[i]);
+                }
+            }
+            if (pData->code == vRestore || pData->code == vRestoreAndStartNewSession) {
+                SendKeyCode(_keycode | ((_flag & kCGEventFlagMaskAlphaShift) || (_flag & kCGEventFlagMaskShift) ? CAPS_MASK : 0));
+            }
+            if (pData->code == vRestoreAndStartNewSession) {
+                startNewSession();
+            }
+        }
+    }
+
+    /// Types UTF-16 text through the shared character events (up to 16 units per event).
+    static void PostText(const UniChar* text, int count) {
+        for (int start = 0; start < count; start += 16) {
+            int n = MIN(16, count - start);
+            CGEventKeyboardSetUnicodeString(eventCharDown, n, text + start);
+            CGEventKeyboardSetUnicodeString(eventCharUp, n, text + start);
+            CGEventTapPostEvent(_proxy, eventCharDown);
+            CGEventTapPostEvent(_proxy, eventCharUp);
+        }
+    }
+
+    /// Deletes `count` characters before the caret and types `text`, with the same
+    /// autocomplete workarounds as the engine output.
+    static void ReplaceBeforeCaret(int count, const UniChar* text, int textCount) {
+        if (AXSlowPathActive() && AXReplaceTextDirect(count, [NSString stringWithCharacters:text length:textCount]))
+            return;
+        if (vFixRecommendBrowser && !_frontMostSkipsAutocompleteFix) {
+            if (vFixChromiumBrowser && _frontMostNeedsChromiumFix) {
+                if (count > 0) {
+                    SendShiftAndLeftArrow();
+                    if (count == 1)
+                        count--;
+                }
+            } else {
+                SendEmptyCharacter();
+                count++;
+            }
+        }
+        for (int x = 0; x < count; x++) {
+            SendBackspace();
+        }
+        PostText(text, textCount);
+    }
+
+    static bool IsWhitespaceKey(const Uint16& key) {
+        return key == KEY_SPACE || key == KEY_RETURN || key == KEY_ENTER || key == KEY_TAB;
+    }
+
+    /// After these the next word is a whole word: whitespace, or an opening ( [ { " '.
+    static bool IsWordStartKey(const Uint16& key, bool shift) {
+        return IsWhitespaceKey(key) || (key == KEY_9 && shift) || key == KEY_LEFT_BRACKET || key == KEY_QUOTE;
+    }
+
+    static bool IsLetterKey(const Uint16& key) {
+        switch (key) {
+            case KEY_A: case KEY_B: case KEY_C: case KEY_D: case KEY_E: case KEY_F: case KEY_G: case KEY_H: case KEY_I:
+            case KEY_J: case KEY_K: case KEY_L: case KEY_M: case KEY_N: case KEY_O: case KEY_P: case KEY_Q: case KEY_R:
+            case KEY_S: case KEY_T: case KEY_U: case KEY_V: case KEY_W: case KEY_X: case KEY_Y: case KEY_Z:
+                return true;
+        }
+        return false;
+    }
+
+    /// Engine character data to UTF-16 (auto switch only runs with the Unicode code table).
+    static UniChar CharacterOf(const Uint32& data) {
+        if (data & CHAR_CODE_MASK) return (UniChar)(data & 0xFFFF);
+        return (UniChar)keyCodeToCharacter(data);
+    }
+
+    /// Remembers how to undo the correction just sent: the original word and the break key.
+    static void RememberAutoFix(int correctedCount) {
+        _autoFixUndo.active = false;
+        if (vAutoSwitchUndoCount <= 0 || correctedCount <= 0) return;
+        // only a fix of the last word is undone; one that also fixed earlier words stays (Backspace just deletes)
+        for (int x = 0; x < vAutoSwitchUndoCount; x++) if ((vAutoSwitchUndoData[x] & 0xFFFF) == KEY_SPACE && !(vAutoSwitchUndoData[x] & CHAR_CODE_MASK)) return;
+        Uint16 breakChar = keyCodeToCharacter(_keycode | ((_flag & kCGEventFlagMaskAlphaShift) || (_flag & kCGEventFlagMaskShift) ? CAPS_MASK : 0));
+        if (breakChar == 0) return; // Enter and the like have already acted
+        int n = 0;
+        for (int x = 0; x < vAutoSwitchUndoCount && n < MAX_BUFF; x++) {
+            UniChar c = CharacterOf(vAutoSwitchUndoData[x]);
+            if (c == 0) return;
+            _autoFixUndo.text[n++] = c;
+        }
+        _autoFixUndo.textCount = n;
+        _autoFixUndo.keyCount = 0;
+        for (int x = 0; x < vAutoSwitchUndoCount && x < MAX_BUFF; x++) {
+            if (vAutoSwitchUndoData[x] & CHAR_CODE_MASK) { _autoFixUndo.keyCount = 0; break; }   // shown text, not keys
+            _autoFixUndo.keys[_autoFixUndo.keyCount++] = vAutoSwitchUndoData[x];
+        }
+        _autoFixUndo.removeCount = correctedCount + 1;
+        _autoFixUndo.language = vLanguage;
+        _autoFixUndo.active = true;
+    }
+
+    /// Switches the language for the user: saves it, updates the per-app memory and the menu bar.
+    static void AutoSwitchTo(int language) {
+        if (vLanguage == language) return;
+        vLanguage = language;
+        [GVBridge engineDidSwitchLanguage];
+        startNewSession();
+        ResetEnglishWord(true);
+    }
+
+    /// Backspace right after an automatic correction puts the original word back (like macOS
+    /// autocorrect) and returns to the previous language.
+    static bool UndoAutoFixWithBackspace() {
+        if (!_autoFixUndo.active) return false;
+        _autoFixUndo.active = false;
+        ReplaceBeforeCaret(_autoFixUndo.removeCount, _autoFixUndo.text, _autoFixUndo.textCount);
+        if (vLanguage != _autoFixUndo.language) {
+            vLanguage = _autoFixUndo.language;
+            [GVBridge engineDidSwitchLanguage];
+        }
+        startNewSession();
+        ResetEnglishWord(false); // the cursor is at the end of a word we didn't see typed
+        //back in English with the typed keys on screen: they are the current word again, so typing on
+        //("vaay" + "j") is checked as a whole ("vaayj" -> "vậy"); the same word again stays as typed
+        if (vLanguage == 0 && _autoFixUndo.keyCount > 0) {
+            memcpy(_enKeys, _autoFixUndo.keys, _autoFixUndo.keyCount * sizeof(Uint32));
+            _enCount = _autoFixUndo.keyCount;
+            _enValid = true;
+            memcpy(_undoneKeys, _autoFixUndo.keys, _autoFixUndo.keyCount * sizeof(Uint32));
+            _undoneCount = _autoFixUndo.keyCount;
+        }
+        return true;
+    }
+
+    /// Vietnamese mode: the engine put a word back to its keys and asked for English.
+    static void ApplyAutoSwitchToEnglish(int correctedCount, bool atWordBreak) {
+        vAutoSwitchRequest = -1;
+        if (atWordBreak) RememberAutoFix(correctedCount); else _autoFixUndo.active = false;
+        AutoSwitchTo(0);
+        ResetEnglishWord(atWordBreak && IsWhitespaceKey(_keycode)); // mid-word: the rest of this word is not a whole word
+        //the word just put back to English is the previous word for look-back ("em is" + "ạ" -> "em í ạ")
+        if (atWordBreak && _keycode == KEY_SPACE && vAutoSwitchRestoredCount > 0) {
+            memcpy(_enPrevKeys[0], vAutoSwitchRestoredKeys, vAutoSwitchRestoredCount * sizeof(Uint32));
+            _enPrevCounts[0] = vAutoSwitchRestoredCount;
+            _enPrevN = 1;
+            _enPrevRestored = true;
+        }
+        _enAfterDouble = !atWordBreak;   // at its end, "mixx" may become "mix"
+    }
+
+    /// English mode key: collect the word; at its end ask the engine whether it was Vietnamese.
+    /// Returns true when the key was consumed (the word was replaced and the break key re-sent).
+    static bool HandleEnglishKeyForAutoSwitch() {
+        if (OTHER_CONTROL_KEY) {
+            ResetEnglishWord(true);
+            _enAfterShortcut = (_flag & (kCGEventFlagMaskCommand | kCGEventFlagMaskControl)) != 0;
+            return false;
+        }
+        bool shift = _flag & kCGEventFlagMaskShift;
+        bool caps = shift || (_flag & kCGEventFlagMaskAlphaShift);
+        if (IsLetterKey(_keycode)) {
+            if (_enCount < MAX_BUFF - 2) _enKeys[_enCount++] = _keycode | (caps ? CAPS_MASK : 0);
+            else _enValid = false;
+            _enAfterShortcut = false;
+            return false;
+        }
+        if (_keycode == KEY_DELETE) {
+            if (_enCount == 0) { _enPrevN = 0; _enAfterDouble = false; } // editing the previous word
+            if (_enCount > 0) _enCount--;
+            else if (!_enAfterShortcut) _enValid = false; // deleting into the previous word: we don't know its letters
+            return false;
+        }
+        if (IS_NUMBER_KEY(_keycode) && !shift) {   // digits after a space start a word of their own ("5trawm" -> "5trăm"); glued to letters, a code
+            _enValid = _enCount == 0 && _enValid;
+            _enCount = 0;
+            _enPrevN = 0;
+            _enAfterDouble = false;
+            return false;
+        }
+        bool wordEnd = _keycode == KEY_SPACE || _keycode == KEY_COMMA || _keycode == KEY_DOT || _keycode == KEY_SEMICOLON ||
+                       _keycode == KEY_RETURN || _keycode == KEY_ENTER || (shift && (_keycode == KEY_SLASH || _keycode == KEY_1 || _keycode == KEY_QUOTE || _keycode == KEY_0));
+        int count = _enCount;
+        bool valid = _enValid;
+        bool afterDouble = _enAfterDouble;
+        _enAfterDouble = false;
+        if (afterDouble && wordEnd && vAutoSwitchFixDoubledKey(_enKeys, count)) {
+            StartEnglishWord(IsWordStartKey(_keycode, shift));
+            _enPrevN = 0;
+            int correctedCount = pData->newCharCount;
+            SendEngineOutput();
+            RememberAutoFix(correctedCount);
+            return true;
+        }
+        // the next word is whole only after whitespace; after . _ - / ( etc. it's part of an identifier or path
+        StartEnglishWord(IsWordStartKey(_keycode, shift));
+        bool checked = wordEnd && valid && count >= 2;
+        if (_undoneCount > 0) {   // the word just put back by Backspace, finished unchanged: keep it as typed
+            if (count == _undoneCount && !memcmp(_enKeys, _undoneKeys, count * sizeof(Uint32))) checked = false;
+            if (wordEnd) _undoneCount = 0;
+        }
+        const Uint32* previous[2] = {_enPrevKeys[0], _enPrevKeys[1]};
+        vAutoSwitchPrevRestored = _enPrevRestored && _enPrevN >= 1;
+        bool converted = checked && vAutoSwitchCheckEnglishWord(_enKeys, count, previous, _enPrevCounts, _enPrevN);
+        // remember this word for look-back only if it was followed by a single space
+        if (!converted && _keycode == KEY_SPACE && valid && count >= 1) {
+            _enPrevRestored = false;
+            memcpy(_enPrevKeys[1], _enPrevKeys[0], sizeof(_enPrevKeys[0]));
+            _enPrevCounts[1] = _enPrevCounts[0];
+            memcpy(_enPrevKeys[0], _enKeys, count * sizeof(Uint32));
+            _enPrevCounts[0] = count;
+            if (_enPrevN < 2) _enPrevN++;
+        } else {
+            _enPrevN = 0;
+        }
+        if (!converted) return false;
+
+        int correctedCount = pData->newCharCount;
+        SendEngineOutput();
+        RememberAutoFix(correctedCount);
+        AutoSwitchTo(1);
+        return true;
     }
 
     int ConvertKeyStringToKeyCode(NSString *keyString, CGKeyCode fallback) {
@@ -1096,8 +1432,24 @@ extern "C" {
 
         _proxy = proxy;
 
+        //Backspace right after an automatic correction undoes it; any other key or click ends that chance
+        if (type == kCGEventKeyDown) {
+            UpdateAutoSwitchPause();
+            if (_keycode == KEY_DELETE && _autoFixUndo.active && !(OTHER_CONTROL_KEY) && UndoAutoFixWithBackspace()) {
+                _lastKeystrokeTime = currentKeystrokeTime;
+                return NULL;
+            }
+        }
+        if (type != kCGEventKeyUp) {
+            _autoFixUndo.active = false;
+        }
+
         //If is in english mode
         if (vLanguage == 0) {
+            if (type == kCGEventLeftMouseDown || type == kCGEventRightMouseDown || type == kCGEventLeftMouseDragged || type == kCGEventRightMouseDragged) {
+                ResetEnglishWord(true); //the caret moved: the next word starts fresh
+                return event;
+            }
             if (vUseMacro && vUseMacroInEnglishMode && type == kCGEventKeyDown) {
                 vEnglishMode((type == kCGEventKeyDown ? vKeyEventState::KeyDown : vKeyEventState::MouseDown),
                              _keycode,
@@ -1105,6 +1457,7 @@ extern "C" {
                              OTHER_CONTROL_KEY);
 
                 if (pData->code == vReplaceMaro) { //handle macro in english mode
+                    ResetEnglishWord(true); //the word became the macro's text
                     handleMacro();
                     _lastKeystrokeTime = currentKeystrokeTime;
                     return NULL;
@@ -1112,6 +1465,14 @@ extern "C" {
             }
             if (type == kCGEventKeyDown) {
                 _lastKeystrokeTime = currentKeystrokeTime;
+                //auto switch: a finished word that reads as Vietnamese typed in Telex
+                bool autoSwitch = EnglishAutoSwitchActive();
+                if (autoSwitch != _enTracking) {
+                    ResetEnglishWord(false); //turned on mid-word (pause over, setting changed): skip the word being typed
+                }
+                if (autoSwitch && HandleEnglishKeyForAutoSwitch()) {
+                    return NULL;
+                }
             }
             return event;
         }
@@ -1144,6 +1505,7 @@ extern "C" {
             }
 
             //send event signal to Engine
+            vAutoSwitchRequest = -1;
             vKeyHandleEvent(vKeyEvent::Keyboard,
                             vKeyEventState::KeyDown,
                             _keycode,
@@ -1170,53 +1532,13 @@ extern "C" {
                 _lastKeystrokeTime = currentKeystrokeTime;
                 return event;
             } else if (pData->code == vWillProcess || pData->code == vRestore || pData->code == vRestoreAndStartNewSession) { //handle result signal
-
-                //Spotlight-like fields: atomic replacement via Accessibility
-                //beats any event-timing game (no backspace can be swallowed
-                //by the async inline completion). Falls through on failure.
-                bool axSucceeded = AXSlowPathActive() && TryAXProcessKey();
-                if (axSucceeded) {
-                    _lastKeystrokeTime = currentKeystrokeTime;
-                    return NULL;
-                }
-
-                //fix autocomplete
-                if (vFixRecommendBrowser && !_frontMostSkipsAutocompleteFix && pData->extCode != 4) {
-                    if (vFixChromiumBrowser && _frontMostNeedsChromiumFix) {
-                        if (pData->backspaceCount > 0) {
-                            SendShiftAndLeftArrow();
-                            if (pData->backspaceCount == 1)
-                                pData->backspaceCount--;
-                        }
-                    } else {
-                        SendEmptyCharacter();
-                        pData->backspaceCount++;
-
-                    }
-                }
-
-                //send backspace
-                if (pData->backspaceCount > 0 && pData->backspaceCount < MAX_BUFF) {
-                    for (_i = 0; _i < pData->backspaceCount; _i++) {
-                        SendBackspace();
-                    }
-                }
-
-                //send new character
-                if (!vSendKeyStepByStep) {
-                    SendNewCharString();
-                } else {
-                    if (pData->newCharCount > 0 && pData->newCharCount <= MAX_BUFF) {
-                        for (int i = pData->newCharCount - 1; i >= 0; i--) {
-                            SendKeyCode(pData->charData[i]);
-                        }
-                    }
-                    if (pData->code == vRestore || pData->code == vRestoreAndStartNewSession) {
-                        SendKeyCode(_keycode | ((_flag & kCGEventFlagMaskAlphaShift) || (_flag & kCGEventFlagMaskShift) ? CAPS_MASK : 0));
-                    }
-                    if (pData->code == vRestoreAndStartNewSession) {
-                        startNewSession();
-                    }
+                //auto switch: the engine put an English word back to its keys (at a break key) or saw a
+                //doubled tone key (mid-word), and asks for English
+                bool autoSwitchAtBreak = vAutoSwitchRequest == 0 && !IsLetterKey(_keycode);
+                int correctedCount = pData->newCharCount;
+                SendEngineOutput();
+                if (vAutoSwitchRequest == 0) {
+                    ApplyAutoSwitchToEnglish(correctedCount, autoSwitchAtBreak);
                 }
             } else if (pData->code == vReplaceMaro) { //MACRO
                 handleMacro();

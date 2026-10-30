@@ -43,10 +43,13 @@ int vFixChromiumBrowser = 0;
 int vPerformLayoutCompat = 0;
 int vFixSpotlight = 1;
 int vUseAXReplacement = 1;
+int vAutoSwitchByTyping = 1;
+int vPauseAutoSwitchAfterManual = 1;
 
 //implemented in GVEngineHook.mm
 extern "C" {
     void GVEngineInit(void);
+    void GVLanguageChangedByUser(void);
     CGEventRef GVEngineCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *refcon);
     void RequestNewSession(void);
     void OnActiveAppChanged(void);
@@ -144,6 +147,7 @@ static void postStateChanged(void) {
 }
 
 + (void)setLanguage:(int)language {
+    GVLanguageChangedByUser(); //a switch by hand: hold auto switch off for a moment
     vLanguage = language;
     [prefs() setInteger:language forKey:@"InputMethod"];
     if (HAS_BEEP(vSwitchKeyStatus)) {

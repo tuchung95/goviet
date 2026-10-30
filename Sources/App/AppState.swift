@@ -98,6 +98,8 @@ final class AppState: ObservableObject {
     @Published var tempOffSpelling: Bool { didSet { set("vTempOffSpelling", &vTempOffSpelling, tempOffSpelling) } }
     @Published var allowZFWJ: Bool { didSet { set("vAllowConsonantZFWJ", &vAllowConsonantZFWJ, allowZFWJ) } }
     @Published var allowStandaloneW: Bool { didSet { set("vAllowStandaloneW", &vAllowStandaloneW, allowStandaloneW) } }
+    @Published var autoSwitchByTyping: Bool { didSet { set("vAutoSwitchByTyping", &vAutoSwitchByTyping, autoSwitchByTyping) } }
+    @Published var pauseAutoSwitchAfterManual: Bool { didSet { set("vPauseAutoSwitchAfterManual", &vPauseAutoSwitchAfterManual, pauseAutoSwitchAfterManual) } }
     @Published var quickStartConsonant: Bool { didSet { set("vQuickStartConsonant", &vQuickStartConsonant, quickStartConsonant) } }
     @Published var quickEndConsonant: Bool { didSet { set("vQuickEndConsonant", &vQuickEndConsonant, quickEndConsonant) } }
     @Published var tempOffByCommand: Bool { didSet { set("vTempOffOpenKey", &vTempOffOpenKey, tempOffByCommand) } }
@@ -215,6 +217,8 @@ final class AppState: ObservableObject {
         tempOffSpelling = defaults.integer(forKey: "vTempOffSpelling") != 0
         allowZFWJ = defaults.integer(forKey: "vAllowConsonantZFWJ") != 0
         allowStandaloneW = defaults.integer(forKey: "vAllowStandaloneW") != 0
+        autoSwitchByTyping = defaults.integer(forKey: "vAutoSwitchByTyping") != 0
+        pauseAutoSwitchAfterManual = defaults.integer(forKey: "vPauseAutoSwitchAfterManual") != 0
         quickStartConsonant = defaults.integer(forKey: "vQuickStartConsonant") != 0
         quickEndConsonant = defaults.integer(forKey: "vQuickEndConsonant") != 0
         tempOffByCommand = defaults.integer(forKey: "vTempOffOpenKey") != 0
@@ -291,6 +295,8 @@ final class AppState: ObservableObject {
             "SwitchKeyStatus": Int(GOVIET_DEFAULT_SWITCH_STATUS),
             "vFixSpotlight": 1,
             "vUseAXReplacement": 1,
+            "vAutoSwitchByTyping": 1,
+            "vPauseAutoSwitchAfterManual": 1,
             "axIncludeApps": [],
             // macroCloudSyncEnabled intentionally NOT registered here: iCloud sync is
             // strictly opt-in (see CloudSyncManager.isEnabled / MacroPage) — it must not
@@ -319,7 +325,8 @@ final class AppState: ObservableObject {
         let keys = ["InputMethod", "InputType", "CodeTable", "Spelling", "ModernOrthography",
                     "FreeMark", "QuickTelex", "RestoreIfInvalidWord", "FixRecommendBrowser",
                     "vFixChromiumBrowser", "UpperCaseFirstChar", "vTempOffSpelling",
-                    "vAllowConsonantZFWJ", "vAllowStandaloneW", "vQuickStartConsonant", "vQuickEndConsonant",
+                    "vAllowConsonantZFWJ", "vAllowStandaloneW", "vAutoSwitchByTyping", "vPauseAutoSwitchAfterManual",
+                    "vQuickStartConsonant", "vQuickEndConsonant",
                     "vTempOffOpenKey", "vOtherLanguage", "vFixSpotlight", "vUseAXReplacement", "axIncludeApps", "axExcludeApps", "UseMacro", "UseMacroInEnglishMode",
                     "vAutoCapsMacro", "UseSmartSwitchKey", "vRememberCode", "SendKeyStepByStep",
                     "vPerformLayoutCompat", "GrayIcon", "vShowIconOnDock", "ShowUIOnStartup",
@@ -341,6 +348,9 @@ final class AppState: ObservableObject {
         upperCaseFirstChar = false
         tempOffSpelling = false
         allowZFWJ = false
+        allowStandaloneW = false
+        autoSwitchByTyping = true
+        pauseAutoSwitchAfterManual = true
         quickStartConsonant = false
         quickEndConsonant = false
         tempOffByCommand = false
@@ -367,6 +377,7 @@ final class AppState: ObservableObject {
         vCheckSpelling = 1; vUseModernOrthography = 0; vFreeMark = 0; vQuickTelex = 0
         vRestoreIfWrongSpelling = 0; vFixRecommendBrowser = 1; vFixChromiumBrowser = 0
         vUpperCaseFirstChar = 0; vTempOffSpelling = 0; vAllowConsonantZFWJ = 0; vAllowStandaloneW = 0
+        vAutoSwitchByTyping = 1; vPauseAutoSwitchAfterManual = 1
         vQuickStartConsonant = 0; vQuickEndConsonant = 0; vTempOffOpenKey = 0
         vOtherLanguage = 1; vFixSpotlight = 1; vUseAXReplacement = 1; vUseMacro = 1; vUseMacroInEnglishMode = 0; vAutoCapsMacro = 0
         vUseSmartSwitchKey = 1; vRememberCode = 1; vSendKeyStepByStep = 0; vPerformLayoutCompat = 0

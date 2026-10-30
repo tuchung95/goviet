@@ -190,6 +190,67 @@ extern int vOtherLanguage;
 extern int vTempOffOpenKey;
 
 /**
+ * Auto switch English/Vietnamese from typing behavior (ported from Vikey, GPL v3).
+ * Works with Telex-family input types and the Unicode code table only.
+ * 0: No; 1: Yes
+ */
+extern int vAutoSwitchByTyping;
+
+/**
+ * Set by the platform while auto switch is held off (right after a manual switch).
+ * 0: No; 1: Yes
+ */
+extern int vAutoSwitchPaused;
+
+/**
+ * Set by the engine when a keystroke should switch the language:
+ * -1: no request, 0: switch to English, 1: switch to Vietnamese.
+ * The platform layer applies it after sending the key's output, then resets it to -1.
+ */
+extern int vAutoSwitchRequest;
+
+/**
+ * What was on screen before the last automatic correction (engine character data),
+ * so the platform can put it back when the user presses Backspace right after it.
+ */
+extern Uint32 vAutoSwitchUndoData[MAX_BUFF];
+extern int vAutoSwitchUndoCount;
+/** The keys of the last word auto switch put back to English (so the next word can look back on it). */
+extern Uint32 vAutoSwitchRestoredKeys[];
+extern int vAutoSwitchRestoredCount;
+/** Set by the platform: the previous word passed to vAutoSwitchCheckEnglishWord was put back to English by auto switch. */
+extern bool vAutoSwitchPrevRestored;
+
+/**
+ * Whether auto switch runs right now: turned on, not paused, Telex family, Unicode code table.
+ */
+bool vAutoSwitchEnabled();
+
+/**
+ * English mode, at a word break: if the raw keys of the finished word are clearly a
+ * Vietnamese word typed in Telex, fills the hook state (code vRestore) with that word and
+ * returns true. The platform then replaces the word and switches to Vietnamese.
+ * keys: key codes with CAPS_MASK, count: number of keys.
+ * previous: the words typed just before it (most recent first, separated by single spaces):
+ * ambiguous ones are converted together with it (look-back).
+ */
+bool vAutoSwitchCheckEnglishWord(const Uint32* keys, const int& count,
+                                 const Uint32* const* previous, const int* previousCounts, const int& previousN);
+
+/**
+ * Forget the words remembered for look-back (language switched by hand, app changed...).
+ */
+void vAutoSwitchForget();
+
+/**
+ * Call at the end of the first English word after a doubled tone key switched to English.
+ * keys: the letters typed since the switch. When the word with both presses of the key is not
+ * English but the word with one is ("mixx" -> "mix"), fills the hook state (code vRestore) with
+ * the fixed word and returns true. Always forgets the pending switch.
+ */
+bool vAutoSwitchFixDoubledKey(const Uint32* keys, const int& count);
+
+/**
  * Call this function first to receive data pointer
  */
 void* vKeyInit();

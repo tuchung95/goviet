@@ -85,8 +85,10 @@ struct AboutPage: View {
 
                     VStack(spacing: 5) {
                         Text("Sử dụng engine gõ tiếng Việt từ dự án mã nguồn mở OpenKey (© Tuyen Mai) · Một phần mã nguồn © Anh Tuấn")
+                        Text("Tự chuyển Anh/Việt từ dự án mã nguồn mở Vikey (© Tony Dinh)")
                         HStack(spacing: 16) {
                             Link("Mã nguồn OpenKey", destination: URL(string: "https://github.com/tuyenvm/OpenKey")!)
+                            Link("Mã nguồn Vikey", destination: URL(string: "https://github.com/tonyminibot/Vikey")!)
                             Link("Giấy phép GPL v3", destination: URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!)
                         }
                     }

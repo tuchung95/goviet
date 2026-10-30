@@ -50,5 +50,9 @@ extern int vPerformLayoutCompat;
 // which scrambles fast typing).
 extern int vFixSpotlight;
 extern int vUseAXReplacement;
+// goviet addition (ported from Vikey): switch English/Vietnamese from what is typed,
+// and hold it off for 5 s after a switch by hand.
+extern int vAutoSwitchByTyping;
+extern int vPauseAutoSwitchAfterManual;
 
 #endif /* GVGlobals_h */

@@ -6,6 +6,10 @@ của [OpenKey](https://github.com/tuyenvm/OpenKey) (© Tuyen Mai, GPL v3).
 ## Tính năng
 
 - Telex/VNI, 5 bảng mã, kiểm tra chính tả, gõ tắt, chuyển mã, lịch sử clipboard.
+- Tự chuyển Anh/Việt khi gõ (lấy từ [Vikey](https://github.com/tonyminibot/Vikey)): gõ `treen`
+  thành `trên`, gõ `more` giữ nguyên tiếng Anh, rồi đổi chế độ theo. Từ lập trình (`var`,
+  `my_var`, `obj.dir`) được để nguyên; nhấn ⌫ ngay sau khi tự sửa để hoàn tác. Dùng với Telex
+  và bảng mã Unicode dựng sẵn.
 - Nhớ chế độ gõ theo từng ứng dụng; loại trừ hẳn ứng dụng không muốn gõ tiếng Việt.
 - Icon VI/EN trên thanh menu, cửa sổ cài đặt kiểu System Settings.
 - Tự cập nhật (Sparkle): khi có bản mới, menu hiện nút **"Cập nhật lên GoViet x.y.z…"**.
@@ -93,7 +97,7 @@ goviet/
 ├── scripts/setup-signing.sh # tạo chứng chỉ ký cố định (chạy một lần)
 ├── scripts/make_icon.swift  # sinh app icon bằng CoreGraphics
 └── Sources/
-    ├── Engine/              # engine C++ nguyên gốc từ OpenKey (GPL v3)
+    ├── Engine/              # engine C++ từ OpenKey (GPL v3), thêm tự chuyển Anh/Việt từ Vikey
     ├── Platform/            # glue ObjC++: event tap, bridge engine ↔ Swift
     ├── App/                 # SwiftUI: MenuBarExtra, Settings, AppState
     └── Support/             # Info.plist, entitlements, bridging header, assets
@@ -102,5 +106,17 @@ goviet/
 ## Giấy phép
 
 Engine © Tuyen Mai (OpenKey). Một phần mã nguồn giao diện và lớp cầu nối © Anh Tuấn.
+Tính năng tự chuyển Anh/Việt lấy từ [Vikey](https://github.com/tonyminibot/Vikey)
+© Tony Dinh (GPL v3).
 Toàn bộ dự án phát hành theo **GPL v3** (xem `LICENSE`). Khi phân phối GoViet, bạn phải
 giữ thông tin bản quyền và công bố mã nguồn.
+
+Từ điển của tính năng tự chuyển (`Sources/Engine/AutoSwitchData.h`, `BigramData.h`) do Vikey
+tạo từ các nguồn sau:
+
+- [FrequencyWords (OpenSubtitles 2018)](https://github.com/hermitdave/FrequencyWords), Hermit Dave (CC BY-SA 4.0)
+- [FineWeb-2 và FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2), Hugging Face (ODC-By 1.0)
+- [HPLT v2](https://hplt-project.org), High Performance Language Technologies (CC0)
+- [MADLAD-400](https://huggingface.co/datasets/allenai/MADLAD-400), Google (ODC-By 1.0)
+- [Reddit comments](https://huggingface.co/datasets/tensorshield/reddit_dataset_157), tensorshield/reddit_dataset_157 (MIT)
+- [Diễn đàn và bình luận tiếng Việt](https://vikey.app/acknowledgements): VnExpress, Tuổi Trẻ, Tinhte, Otofun, Dạy Nhau Học (thống kê từ)

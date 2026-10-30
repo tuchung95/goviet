@@ -14,6 +14,11 @@ struct TypingPage: View {
     @State private var selectedAXApp: String?
     @State private var isAXAppDropTargeted = false
 
+    /// Auto switch reads words as Telex and counts characters as Unicode (see vAutoSwitchEnabled).
+    private var autoSwitchSupported: Bool {
+        state.inputType != 1 && state.codeTable == 0
+    }
+
     private var beepBinding: Binding<Bool> {
         Binding {
             state.switchKeyStatus & 0x8000 != 0
@@ -42,6 +47,21 @@ struct TypingPage: View {
                         Text(AppState.codeTableNames[i]).tag(i)
                     }
                 }
+            }
+
+            Section {
+                Toggle("Tự chuyển Anh/Việt khi gõ", isOn: $state.autoSwitchByTyping)
+                    .disabled(!autoSwitchSupported)
+                Toggle("Tạm dừng 5 giây sau khi chuyển tay", isOn: $state.pauseAutoSwitchAfterManual)
+                    .disabled(!autoSwitchSupported || !state.autoSwitchByTyping)
+            } header: {
+                Text("Tự chuyển Anh/Việt")
+            } footer: {
+                Text(autoSwitchSupported
+                     ? "Gõ “treen” thành “trên”, gõ “more” giữ nguyên tiếng Anh, và đổi chế độ theo luôn. Từ lập trình (var, my_var, obj.dir) được để nguyên. Nhấn ⌫ ngay sau khi tự sửa để hoàn tác."
+                     : "Chỉ dùng được với kiểu gõ Telex và bảng mã Unicode dựng sẵn.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
